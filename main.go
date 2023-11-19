@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/jung-kurt/gofpdf"
+	"golang.org/x/image/webp"
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 		}
 
 		filename := file.Name()
-		if strings.HasSuffix(filename, ".jpg") || strings.HasSuffix(filename, ".jpeg") || strings.HasSuffix(filename, ".png") {
+		if strings.HasSuffix(filename, ".jpg") || strings.HasSuffix(filename, ".jpeg") || strings.HasSuffix(filename, ".png") || strings.HasSuffix(filename, ".webp") {
 			if err := addImageToPDF(pdf, filename); err != nil {
 				log.Printf("画像の追加に失敗しました: %v", err)
 				continue
@@ -78,13 +79,22 @@ func addImageToPDF(pdf *gofpdf.Fpdf, filename string) error {
 	}
 	defer imgFile.Close()
 
-	img, _, err := image.Decode(imgFile)
-	if err != nil {
-		return err
-	}
-
+	var img image.Image
 	// JPEGデータをメモリ内で生成
 	var buf bytes.Buffer
+	if strings.HasSuffix(filename, ".webp") {
+		var err error
+		img, err = webp.Decode(imgFile)
+		if err != nil {
+			return err
+		}
+	} else {
+		var err error
+		img, _, err = image.Decode(imgFile)
+		if err != nil {
+			return err
+		}
+	}
 	opt := jpeg.Options{Quality: 75} // JPEGの圧縮率
 	if err := jpeg.Encode(&buf, img, &opt); err != nil {
 		return err
