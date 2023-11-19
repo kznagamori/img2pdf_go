@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/jung-kurt/gofpdf"
 	"golang.org/x/image/webp"
@@ -41,7 +43,7 @@ func main() {
 	}
 	// ファイル名でソート
 	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name() < files[j].Name()
+		return less(files[i].Name(), files[j].Name())
 	})
 
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{
@@ -74,6 +76,7 @@ func main() {
 
 func addImageToPDF(pdf *gofpdf.Fpdf, filename string) error {
 	imgFile, err := os.Open(filename)
+	log.Printf("画像:%v追加します", filename)
 	if err != nil {
 		return err
 	}
@@ -109,4 +112,60 @@ func addImageToPDF(pdf *gofpdf.Fpdf, filename string) error {
 	pdf.RegisterImageOptionsReader(filename, gofpdf.ImageOptions{ImageType: "JPEG", ReadDpi: true}, &buf)
 	pdf.ImageOptions(filename, 0, 0, width, height, false, gofpdf.ImageOptions{}, 0, "")
 	return nil
+}
+
+// less はファイル名を解析して比較する
+func less(name1, name2 string) bool {
+	// 数値部分と文字列部分に分割
+	parts1 := splitName(name1)
+	parts2 := splitName(name2)
+
+	// 最小の長さを取得
+	minLen := len(parts1)
+	if len(parts2) < minLen {
+		minLen = len(parts2)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if parts1[i] != parts2[i] {
+			// 数値部分は数値として比較
+			if num1, err1 := strconv.Atoi(parts1[i]); err1 == nil {
+				if num2, err2 := strconv.Atoi(parts2[i]); err2 == nil {
+					return num1 < num2
+				}
+			}
+			// 文字列部分は文字列として比較
+			return parts1[i] < parts2[i]
+		}
+	}
+
+	// 全て同じ場合は、短い方が先
+	return len(parts1) < len(parts2)
+}
+
+// splitName はファイル名を数値と非数値部分に分割する
+func splitName(name string) []string {
+	var parts []string
+	var currentPart strings.Builder
+
+	for _, runeValue := range name {
+		if runeValue >= '0' && runeValue <= '9' {
+			if currentPart.Len() > 0 && !unicode.IsDigit(rune(currentPart.String()[0])) {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			}
+		} else {
+			if currentPart.Len() > 0 && unicode.IsDigit(rune(currentPart.String()[0])) {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			}
+		}
+		currentPart.WriteRune(runeValue)
+	}
+
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	return parts
 }
